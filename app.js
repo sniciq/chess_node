@@ -18,14 +18,23 @@ app.use(bodyParser.json());                                     // parse applica
 app.use(bodyParser.json({ type: 'application/vnd.api+json' })); // parse application/vnd.api+json as json
 app.use(methodOverride());
 
-AppCtrl(app);
+AppCtrl(app, socketIO);
 
-socketIO.of('/chart').on('connection', function (socket) {
-  socket.emit('news', { i: 'hello' });
-  socket.on('clientInfo', function (data) {    
-  	//socket.emit('news', { i: 'you have send: ' + data.clientInfo });
-  	socket.broadcast.emit('news', { i: 'you have send: ' + data.clientInfo });  	
-  });
+socketIO.of('/chartchannel').on('connection', function(socket){	
+	
+	socket.on('join', function (data) {
+		console.log(data);
+		socket.join(data.room);
+		socket.userName = data.userName;
+		socket.broadcast.to(data.room).emit('news', { me:false,userName:data.userName, i: 'hi all.'});
+		socket.emit('news', { me:true,userName:data.userName, i: 'hi all.' });
+	});
+
+	socket.on('clientInfo', function (data) {
+		console.log(data);
+		socket.emit('news', { me:true,userName:data.userName,  i:data.clientInfo });
+		socket.broadcast.to(data.room).emit('news', { me:false, userName:data.userName,i: data.clientInfo });
+	});
 });
 
 var port = 8080;

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN" ng-app="myApp">
+	<head>
+		<meta charset="utf-8">		
+	    
+	    <title>无聊聊天</title>
+		<link rel="shortcut icon" href="../resources/images/flow.png"/>
+		<meta charset="utf-8">
+		<meta name="description" content="无聊聊天">
+		<meta name="title" content="无聊聊天" />
+		<meta name="keywords" content="无聊聊天" />
+		<meta name="description" content="无聊聊天" />
+
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width">
+
+		<link rel="stylesheet" href="../resources/css/bootstrap/css/bootstrap.min.css"/>
+		<link rel="stylesheet" href="../resources/css/fontawesome/css/font-awesome.min.css">
+
+		<link rel="stylesheet" href="../resources/css/app.css">
+		<link rel="stylesheet" href="../directive/angular-busy/angular-busy.css"/>
+		<link rel="stylesheet" href="../resources/js/angular/toaster/toaster.css"/>
+		
+		<style type="text/css">
+			body {
+			    background-color: #f8f8f8;
+			}
+		</style>
+
+		<script src="../resources/js/socket.io-1.4.5.js"></script>
+
+		<script src="../resources/js/moment/moment.min.js"></script>
+		<script src="../resources/js/angular/angular.js"></script>
+		<script src="../resources/js/angular/i18n/angular-locale_zh-cn.js"></script>
+		<script src="../resources/js/angular/angular-animate/angular-animate.min.js"></script>
+		<script src="../resources/js/angular/angular-aria.min.js"></script>
+		<script src="../resources/js/angular/angular-route.min.js"></script>
+		
+		<script src="../resources/js/angular/angular-sanitize.min.js"></script>
+		<script src="../resources/js/angular/angular-messages.min.js"></script>
+
+		<script src="../resources/js/angular/toaster/toaster.js"></script>
+		
+		<script src="../directive/angular-busy/angular-busy.js"></script>
+		
+	</head>
+
+	<body ng-controller="MainCtrl">
+		<div class="container" style="padding-top: 5px;">
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					<form class="form-inline" name="connectForm">
+						<button type="button" class="btn btn-primary" ng-click="createChartRoom()" ng-show="showCreateRoom && socket==null">创建聊天室</button>
+						<button type="button" class="btn btn-primary" ng-click="showroom = !showroom;showCreateRoom=false" ng-show="showEnterRoom">进入聊天室</button>
+
+						<div class="input-group" ng-show="showroom">
+						    <span class="input-group-addon" id="roomName-addon1">房间号</span>
+						    <input type="text" class="form-control" id="roomName" placeholder="房间名" aria-describedby="roomName-addon1" required ng-model="msg.room" ng-disabled="socket!=null">
+						</div>
+						
+						<div class="input-group">
+						    <span class="input-group-addon" for="userName-addon1">用户名</span>
+						    <input type="text" class="form-control" id="userName" placeholder="用户名" aria-describedby="userName-addon1" ng-model="msg.userName"  ng-disabled="socket!=null" required autofocus="autofocus">
+						</div>
+
+						<a target="_blank" href="?room={{msg.room}}" ng-show="socket!=null">复制本链接邀请朋友</a>
+						<button type="button" class="btn" ng-class="{'btn-success': socket==null, 'btn-danger': socket!=null}" ng-disabled="connectForm.$invalid" ng-click="toggleConnect()">{{socket == null ? '开始聊天' : '退出'}}</button>
+
+						<button type="button" class="pull-right btn btn-primary" ng-click="toHome()" >首页</button>
+					</form>
+			  	</div>
+			  	<div class="panel-body" style="padding: 0 15px 0 15px;">
+			  		<div class="row">
+			  			<div class="col-md-2" ng-style="contactStyle">
+			  				<div class="" ng-repeat="user in roomUsers">
+			  					{{user.name}}
+			  				</div>
+			  			</div>
+			  			<div class="col-md-10" ng-style="msgContentStyle">
+			  				<div class="row" ng-repeat="info in msgs track by $index" style="padding: 8px 10px 20px 0;">
+			  					<div ng-if="info.me" class="pull-right">			  						
+			  						<span style="background-color: #F5F5F5;border-radius: 5px;padding: 6px;border: 1px solid #5CB85C;">{{info.i}}</span>
+			  						{{info.userName}}
+			  						<!-- <div class="send">
+										<div class="arrow">asdsadsadasdaasd</div>
+									</div> -->
+			  					</div>
+			  					<div ng-if="!info.me" >
+			  						{{info.userName}}
+			  						<span style="background-color: #F5F5F5;border-radius: 5px;padding: 6px;border: 1px solid #5CB85C;">{{info.i}}</span>			  						
+			  					</div>
+			  				</div>
+			  				<p id='msg_end_div'></p>
+			  			</div>
+			  		</div>
+				</div>
+				<div class="panel-footer">
+					<div class="row">
+						<div class="col-md-12">
+							<input class="form-control" type="text" placeholder="输入信息按回车发送" ng-disabled="socket==null" ng-model="msg.clientInfo" ng-keypress="sendByEnter($event)"></input>
+						</div>
+					</div>					
+				</div>
+			</div>
+		</div>
+		
+		<script type="text/javascript">
+			var myApp = angular.module('myApp', 
+				['ngSanitize','ngAnimate','ngMessages','cgBusy', 'toaster']
+			);
+
+			myApp.getRequestParas = function(paras) {  
+			   var url = location.href;  
+			   var paraString = url.substring(url.indexOf("?") + 1, url.length).split("&");  
+			   var paraObj = {}  
+			   for (i = 0; j = paraString[i]; i++) {  
+			       paraObj[j.substring(0, j.indexOf("=")).toLowerCase()] = j.substring(j.indexOf("=") + 1, j.length);  
+			   }  
+			   var returnValue = paraObj[paras.toLowerCase()];  
+			   if (typeof (returnValue) == "undefined") {  
+			       return "";  
+			   } else {  
+			       return returnValue;  
+			   }  
+			}  
+
+			myApp.controller('MainCtrl', function($rootScope,$scope, $http, $location, $window,toaster, $anchorScroll) {
+				$scope.msgs = [];
+
+				angular.element($window).bind('load', function(){
+					console.log('load')
+					onWindowSizeChanged();
+				});
+				
+				angular.element($window).bind('resize', function(){
+					if(this.resizeTO) clearTimeout(this.resizeTO);
+			        this.resizeTO = setTimeout(function() {
+			        	onWindowSizeChanged();
+			        }, 50);
+				});
+				
+				function onWindowSizeChanged() {
+					var topOffset = 60;
+					var footerOffset = 60;
+				    var width = (window.innerWidth > 0) ? window.innerWidth : screen.width;
+				    var height = ((window.innerHeight > 0) ? window.innerHeight : screen.height) - 10;
+				    height = height - topOffset - footerOffset;	    
+				    if (height < 1) height = 1;
+				    
+					$scope.contactStyle = {
+						"background-color" : "#eee",
+						"height": height+"px",
+						"max-height": height+"px",
+						"min-height": height+"px",
+						"overflow": "auto"
+					}
+					$scope.msgContentStyle = {
+						"border-left": "1px solid #e7e7e7",
+						"background-color" : "#fff",		
+						"height": height+"px",
+						"max-height": height+"px",
+						"min-height": height+"px",
+						"overflow": "auto"
+					}
+
+				    $scope.$apply();
+				}
+
+				$scope.showEnterRoom = true;
+				$scope.showCreateRoom = true;
+				$scope.createChartRoom = function() {
+					var i=Math.random();
+					var no = Math.ceil(i*100000);
+					$scope.msg.room='' + no;
+					$scope.showroom = true;
+					$scope.showEnterRoom = false;					
+				}
+
+				$scope.msg = {};
+				$scope.roomUsers = [{name:'aaa'}];
+
+				$scope.toggleConnect = function() {
+					if($scope.socket == null) {
+						$scope.connect();
+					}
+					else {
+						$scope.disConnect()
+					}
+				}
+
+				$scope.connect = function() {
+					$scope.showEnterRoom = false;
+					$scope.showCreateRoom = false;
+					
+					$scope.socket = io('/chartchannel');
+					$scope.socket.emit('join', $scope.msg);
+					console.log($scope.msg);
+					$scope.socket.on('news', function (data) {	    
+						console.log(data)
+					    $scope.msgs.push(data);	    
+					    $scope.$apply();		    
+					    $anchorScroll('msg_end_div');
+					});
+				};
+
+				$scope.sendByEnter = function($event) {
+					if($event.keyCode != 13) {
+						return;
+					}
+
+					console.log($scope.msg)
+					$scope.socket.emit('clientInfo', $scope.msg);
+					$scope.msg.clientInfo = '';
+				}
+
+				$scope.toHome = function() {
+					window.location.href = '/chat';
+				}
+
+				var roomNo= myApp.getRequestParas('room');
+				if(roomNo) {
+					$scope.msg.room = roomNo;
+					$scope.showroom = true;
+					$scope.showEnterRoom = false;
+					$scope.showCreateRoom = false;
+				}
+
+			});
+
+
+		</script>
+	</body>
+</html>
