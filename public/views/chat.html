@@ -28,6 +28,7 @@
 			}
 		</style>
 
+		
 		<script src="../resources/js/socket.io-1.4.5.js"></script>
 
 		<script src="../resources/js/moment/moment.min.js"></script>
@@ -35,15 +36,14 @@
 		<script src="../resources/js/angular/i18n/angular-locale_zh-cn.js"></script>
 		<script src="../resources/js/angular/angular-animate/angular-animate.min.js"></script>
 		<script src="../resources/js/angular/angular-aria.min.js"></script>
-		<script src="../resources/js/angular/angular-route.min.js"></script>
-		
+		<script src="../resources/js/angular/angular-route.min.js"></script>		
 		<script src="../resources/js/angular/angular-sanitize.min.js"></script>
 		<script src="../resources/js/angular/angular-messages.min.js"></script>
-
-		<script src="../resources/js/angular/toaster/toaster.js"></script>
-		
+		<script src="../resources/js/angular/ui-bootstrap-tpls-1.2.0.min.js"></script>		
+		<script src="../resources/js/angular/toaster/toaster.js"></script>		
 		<script src="../directive/angular-busy/angular-busy.js"></script>
-		
+
+		<script src="../resources/js/zeroclipboard/ZeroClipboard.js"></script>		
 	</head>
 
 	<body ng-controller="MainCtrl">
@@ -51,30 +51,33 @@
 			<div class="panel panel-default">
 				<div class="panel-heading">
 					<form class="form-inline" name="connectForm">
-						<button type="button" class="btn btn-primary" ng-click="createChartRoom()" ng-show="showCreateRoom && socket==null">创建聊天室</button>
-						<button type="button" class="btn btn-primary" ng-click="showroom = !showroom;showCreateRoom=false" ng-show="showEnterRoom">进入聊天室</button>
+						
+						<button type="button" ng-click="toHome()" class="btn btn-success" aria-label="label" uib-tooltip="首页" tooltip-placement="bottom">
+							<span class="glyphicon glyphicon-home" aria-hidden="true"></span>
+						</button>						
 
-						<div class="input-group" ng-show="showroom">
+						<div class="input-group">
 						    <span class="input-group-addon" id="roomName-addon1">房间号</span>
 						    <input type="text" class="form-control" id="roomName" placeholder="房间名" aria-describedby="roomName-addon1" required ng-model="msg.room" ng-disabled="socket!=null">
+						    <span class="input-group-addon" ng-show="socket==null" >
+						    	<span class="glyphicon glyphicon-refresh" uib-tooltip="创建独立房间" tooltip-placement="bottom" style="cursor: pointer;" ng-click="createChartRoom();"></span>
+						    </span>
 						</div>
 						
 						<div class="input-group">
 						    <span class="input-group-addon" for="userName-addon1">用户名</span>
-						    <input type="text" class="form-control" id="userName" placeholder="用户名" aria-describedby="userName-addon1" ng-model="msg.userName"  ng-disabled="socket!=null" required autofocus="autofocus">
+						    <input type="text" class="form-control" id="userName" placeholder="用户名" aria-describedby="userName-addon1" ng-model="msg.userName"  ng-disabled="socket!=null" required>
 						</div>
-
-						<a target="_blank" href="?room={{msg.room}}" ng-show="socket!=null">复制本链接邀请朋友</a>
+												
 						<button type="button" class="btn" ng-class="{'btn-success': socket==null, 'btn-danger': socket!=null}" ng-disabled="connectForm.$invalid" ng-click="toggleConnect()">{{socket == null ? '开始聊天' : '退出'}}</button>
-
-						<button type="button" class="pull-right btn btn-primary" ng-click="toHome()" >首页</button>
+						<button type="button" class="btn btn-default" ng-click="copyRoomPath()" id="copy-button" title="点我复制聊天室地址">复制地址邀请朋友</button>
 					</form>
 			  	</div>
 			  	<div class="panel-body" style="padding: 0 15px 0 15px;">
 			  		<div class="row">
 			  			<div class="col-md-2" ng-style="contactStyle">
-			  				<div class="" ng-repeat="user in roomUsers">
-			  					{{user.name}}
+			  				<div class="" ng-repeat="(name, value) in roomUsers">
+			  					{{name}}
 			  				</div>
 			  			</div>
 			  			<div class="col-md-10" ng-style="msgContentStyle">
@@ -103,11 +106,13 @@
 					</div>					
 				</div>
 			</div>
+			<toaster-container toaster-options="{'time-out': 3000, 'close-button':true, 'position-class': 'toast-bottom-right'}"></toaster-container>
 		</div>
 		
-		<script type="text/javascript">
+		
+		<script type="text/javascript">		
 			var myApp = angular.module('myApp', 
-				['ngSanitize','ngAnimate','ngMessages','cgBusy', 'toaster']
+				['ngSanitize','ngAnimate','ngMessages','cgBusy', 'toaster', 'ui.bootstrap']
 			);
 
 			myApp.getRequestParas = function(paras) {  
@@ -125,11 +130,9 @@
 			   }  
 			}  
 
-			myApp.controller('MainCtrl', function($rootScope,$scope, $http, $location, $window,toaster, $anchorScroll) {
+			myApp.controller('MainCtrl', function($rootScope,$scope, $http, $location, $window,toaster, $anchorScroll) {				
 				$scope.msgs = [];
-
 				angular.element($window).bind('load', function(){
-					console.log('load')
 					onWindowSizeChanged();
 				});
 				
@@ -166,18 +169,14 @@
 
 				    $scope.$apply();
 				}
-
-				$scope.showEnterRoom = true;
-				$scope.showCreateRoom = true;
+				
 				$scope.createChartRoom = function() {
 					var i=Math.random();
 					var no = Math.ceil(i*100000);
-					$scope.msg.room='' + no;
-					$scope.showroom = true;
-					$scope.showEnterRoom = false;					
+					$scope.msg.room='' + no;					
 				}
 
-				$scope.msg = {};
+				$scope.msg = {room: 'world'};
 				$scope.roomUsers = [{name:'aaa'}];
 
 				$scope.toggleConnect = function() {
@@ -189,19 +188,30 @@
 					}
 				}
 
-				$scope.connect = function() {
-					$scope.showEnterRoom = false;
-					$scope.showCreateRoom = false;
-					
+				$scope.connect = function() {					
 					$scope.socket = io('/chartchannel');
-					$scope.socket.emit('join', $scope.msg);
-					console.log($scope.msg);
+					$scope.socket.emit('join', $scope.msg);					
 					$scope.socket.on('news', function (data) {	    
 						console.log(data)
-					    $scope.msgs.push(data);	    
+					    $scope.msgs.push(data);
 					    $scope.$apply();		    
 					    $anchorScroll('msg_end_div');
 					});
+					$scope.socket.on('userLeft', function (data) {
+						$scope.msgs.push({i : data.userName + ' 已经离开了房间!'});
+					    $scope.$apply();		    
+					    $anchorScroll('msg_end_div');
+					    $scope.refreshUsers();
+					});
+
+					$scope.socket.on('userJoinIn', function (data) {
+						$scope.msgs.push({i : data.userName + ' 加入了房间!'});
+					    $scope.$apply();		    
+					    $anchorScroll('msg_end_div');
+						$scope.refreshUsers();
+					});					
+
+					toaster.pop('success', '提示', '连接成功。', 3000);					
 				};
 
 				$scope.sendByEnter = function($event) {
@@ -209,7 +219,6 @@
 						return;
 					}
 
-					console.log($scope.msg)
 					$scope.socket.emit('clientInfo', $scope.msg);
 					$scope.msg.clientInfo = '';
 				}
@@ -218,17 +227,38 @@
 					window.location.href = '/chat';
 				}
 
+				$scope.refreshUsers = function() {
+					$scope.promise = $http.post('/chatUsers', {room: $scope.msg.room}).success(function(data){						
+						$scope.roomUsers = data;
+						if(data.result == "success") {							
+							// $scope.$root.$broadcast('notify', {type:'success',title:'提示',info:'保存成功',timeOut:2000});
+							// $location.path('/home').search({});
+						}
+						else {
+							//$scope.$root.$broadcast('notify', {type:'error',title:'错误',info:data.info,timeOut:2000});
+						}
+					});
+				}
+
 				var roomNo= myApp.getRequestParas('room');
 				if(roomNo) {
 					$scope.msg.room = roomNo;
-					$scope.showroom = true;
-					$scope.showEnterRoom = false;
-					$scope.showCreateRoom = false;
 				}
-
+				
+				var client = new ZeroClipboard(document.getElementById("copy-button")); 
+				client.on( 'ready', function(event) {        
+					client.on( 'copy', function(event) {						
+						var path = location.href;
+						var i = path.indexOf("?");
+						if(i > 0) {
+							path = path.substring(0, i);
+						}
+						path += '?room=' + $scope.msg.room;
+						event.clipboardData.setData('text/plain', path);
+						toaster.pop('success', '提示', '已经复制到剪切板，通完QQ、微信、邮件等发送成朋友即可。', 3000);
+					});
+				});
 			});
-
-
 		</script>
 	</body>
 </html>
